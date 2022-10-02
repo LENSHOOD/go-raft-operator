@@ -1,0 +1,12 @@
+apiVersion: lenshood.github.io/v1
+kind: LenshoodRaftCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: lenshoodraftcluster
+    app.kubernetes.io/instance: lenshoodraftcluster-sample
+    app.kubernetes.io/part-of: go-raft-operator
+    app.kuberentes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: go-raft-operator
+  name: lenshoodraftcluster-sample
+spec:
+  # TODO(user): Add fields here
