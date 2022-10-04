@@ -49,7 +49,17 @@ type LenshoodRaftClusterReconciler struct {
 func (r *LenshoodRaftClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	// 1. check CRD exists, if not then create CRD
+
+	// 2. check if CR exists, if not then end loop
+
+	// 3. one CR per goroutine, deal with raft cluster
+
+	// 4. in one goroutine:
+	//    - check raft instance by pod id stored in some place
+	//    - if replica num not match, create pod
+	//    - if pod not found, create pod
+	//    - update status, end
 
 	return ctrl.Result{}, nil
 }
