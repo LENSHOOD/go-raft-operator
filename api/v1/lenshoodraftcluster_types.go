@@ -32,7 +32,8 @@ type LenshoodRaftClusterSpec struct {
 type ClusterState uint8
 
 const (
-	OK ClusterState = iota
+	Init ClusterState = iota
+	OK
 	BUILDING
 	ERROR
 	UNKNOWN

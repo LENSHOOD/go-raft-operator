@@ -18,8 +18,10 @@ package controllers
 
 import (
 	"context"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -53,35 +55,49 @@ func (r *LenshoodRaftClusterReconciler) Reconcile(ctx context.Context, req ctrl.
 	err = r.Client.Get(ctx, req.NamespacedName, cluster)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return res, deleteCluster(cluster.DeepCopy())
+			return res, r.deleteCluster(ctx, cluster.DeepCopy())
 		}
 		return
 	}
 
-	if reachedDesiredState(cluster) {
+	if r.reachedDesiredState(ctx, cluster) {
 		return
 	}
 
 	if len(cluster.Status.Ids) == 0 {
-		return res, createSeedToCluster(cluster.DeepCopy())
+		return res, r.createSeedToCluster(ctx, cluster.DeepCopy())
 	}
 
-	return ctrl.Result{}, joinToCluster(cluster.DeepCopy())
+	return ctrl.Result{}, r.joinToCluster(ctx, cluster.DeepCopy())
 }
 
-func reachedDesiredState(cluster *LenshoodRaftCluster) bool {
-	return false
+func (r *LenshoodRaftClusterReconciler) reachedDesiredState(ctx context.Context, cluster *LenshoodRaftCluster) bool {
+	if cluster.Status.State != OK {
+		return false
+	}
+
+	if len(cluster.Status.Ids) != cluster.Spec.Replica {
+		return false
+	}
+
+	for _, id := range cluster.Status.Ids {
+		if err := r.Client.Get(ctx, types.NamespacedName{Namespace: id, Name: cluster.Namespace}, &v1.Pod{}); err != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
-func createSeedToCluster(cluster *LenshoodRaftCluster) error {
+func (r *LenshoodRaftClusterReconciler) createSeedToCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
 	return nil
 }
 
-func joinToCluster(cluster *LenshoodRaftCluster) error {
+func (r *LenshoodRaftClusterReconciler) joinToCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
 	return nil
 }
 
-func deleteCluster(cluster *LenshoodRaftCluster) error {
+func (r *LenshoodRaftClusterReconciler) deleteCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
 	return nil
 }
 
