@@ -18,13 +18,13 @@ package controllers
 
 import (
 	"context"
-
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	lenshoodgithubiov1 "go-raft-operator/api/v1"
+	. "go-raft-operator/api/v1"
 )
 
 // LenshoodRaftClusterReconciler reconciles a LenshoodRaftCluster object
@@ -46,27 +46,48 @@ type LenshoodRaftClusterReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *LenshoodRaftClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *LenshoodRaftClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
 	_ = log.FromContext(ctx)
 
-	// 1. check CRD exists, if not then create CRD
+	cluster := &LenshoodRaftCluster{}
+	err = r.Client.Get(ctx, req.NamespacedName, cluster)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return res, deleteCluster(cluster.DeepCopy())
+		}
+		return
+	}
 
-	// 2. check if CR exists, if not then end loop
+	if reachedDesiredState(cluster) {
+		return
+	}
 
-	// 3. one CR per goroutine, deal with raft cluster
+	if len(cluster.Status.Ids) == 0 {
+		return res, createSeedToCluster(cluster.DeepCopy())
+	}
 
-	// 4. in one goroutine:
-	//    - check raft instance by pod id stored in some place
-	//    - if replica num not match, create pod
-	//    - if pod not found, create pod
-	//    - update status, end
+	return ctrl.Result{}, joinToCluster(cluster.DeepCopy())
+}
 
-	return ctrl.Result{}, nil
+func reachedDesiredState(cluster *LenshoodRaftCluster) bool {
+	return false
+}
+
+func createSeedToCluster(cluster *LenshoodRaftCluster) error {
+	return nil
+}
+
+func joinToCluster(cluster *LenshoodRaftCluster) error {
+	return nil
+}
+
+func deleteCluster(cluster *LenshoodRaftCluster) error {
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *LenshoodRaftClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&lenshoodgithubiov1.LenshoodRaftCluster{}).
+		For(&LenshoodRaftCluster{}).
 		Complete(r)
 }

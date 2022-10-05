@@ -23,7 +23,7 @@ import (
 // LenshoodRaftClusterSpec defines the desired state of LenshoodRaftCluster
 type LenshoodRaftClusterSpec struct {
 	// Replica defines how many raft instance exists in a single cluster
-	Replica string `json:"replica"`
+	Replica int `json:"replica"`
 
 	// Version defines lenshood raft version
 	Version string `json:"version"`
@@ -41,6 +41,7 @@ const (
 // LenshoodRaftClusterStatus defines the observed state of LenshoodRaftCluster
 type LenshoodRaftClusterStatus struct {
 	State ClusterState `json:"state"`
+	Ids   []string     `json:"ids"`
 }
 
 //+kubebuilder:object:root=true

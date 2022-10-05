@@ -89,6 +89,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	// TODO: check CRD existence, create it if not exist
+
 	if err = (&controllers.LenshoodRaftClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
