@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+spec:
+  subdomain: "raft-svc"
+  containers:
+    - name: go-raft
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 34220
+          name: peer
+      command:
+        - bash
+        - "-c"
+        - |
+          set -ex
+          ./go-raft server \
+              --me="$(ME_ADDR)" \
+              --members="$(MEMBERS_ADDR)" \
+              --tick=10 \
+              --eleMin=500 \
+              --eleMax=1000
+      resources:
+        limits:
+          cpu: "300m"
+          memory: "64Mi"
+          ephemeral-storage: "128Mi"
+        requests:
+          cpu: "100m"
+          memory: "32Mi"
+          ephemeral-storage: "64Mi"
