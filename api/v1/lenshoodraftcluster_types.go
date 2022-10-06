@@ -25,8 +25,8 @@ type LenshoodRaftClusterSpec struct {
 	// Replica defines how many raft instance exists in a single cluster
 	Replica int `json:"replica"`
 
-	// Version defines lenshood raft version
-	Version string `json:"version"`
+	// Image defines lenshood raft image
+	Image string `json:"image"`
 }
 
 type ClusterState uint8

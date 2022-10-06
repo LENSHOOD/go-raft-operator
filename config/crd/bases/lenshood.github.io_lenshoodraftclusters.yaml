@@ -36,16 +36,16 @@ spec:
           spec:
             description: LenshoodRaftClusterSpec defines the desired state of LenshoodRaftCluster
             properties:
+              image:
+                description: Image defines lenshood raft image
+                type: string
               replica:
                 description: Replica defines how many raft instance exists in a single
                   cluster
                 type: integer
-              version:
-                description: Version defines lenshood raft version
-                type: string
             required:
+            - image
             - replica
-            - version
             type: object
           status:
             description: LenshoodRaftClusterStatus defines the observed state of LenshoodRaftCluster

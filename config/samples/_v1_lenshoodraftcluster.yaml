@@ -10,4 +10,4 @@ metadata:
   name: lenshoodraftcluster-sample
 spec:
   replica: 3
-  version: v0.1.0
+  image: registry.cn-hangzhou.aliyuncs.com/lenshood/go-raft:v0.1.0
