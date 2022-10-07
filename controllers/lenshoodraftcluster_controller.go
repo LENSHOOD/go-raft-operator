@@ -110,6 +110,7 @@ func buildRaftHeadlessSvc(cluster *LenshoodRaftCluster) *v1.Service {
 	}
 
 	svc.Namespace = cluster.Namespace
+	svc.Name = cluster.Name
 	svc.Spec.Selector = map[string]string{"managed-by": cluster.Name}
 	return svc
 }
@@ -129,6 +130,7 @@ func buildRaftPod(cluster *LenshoodRaftCluster, members []string, ordinal int) *
 	pod.Namespace = cluster.Namespace
 	pod.Name = getPodName(ordinal)
 	pod.Spec.Hostname = getPodName(ordinal)
+	pod.Spec.Subdomain = cluster.Name
 	pod.Spec.Containers[0].Image = cluster.Spec.Image
 	pod.Spec.Containers[0].Env = []v1.EnvVar{{Name: "ME_ADDR", Value: members[ordinal]}, {Name: "MEMBERS_ADDR", Value: strings.Join(members, ",")}}
 
