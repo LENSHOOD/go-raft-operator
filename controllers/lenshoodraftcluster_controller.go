@@ -21,6 +21,7 @@ import (
 	"fmt"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -60,7 +61,7 @@ func (r *LenshoodRaftClusterReconciler) Reconcile(ctx context.Context, req ctrl.
 	err = r.Client.Get(ctx, req.NamespacedName, cluster)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return res, r.deleteCluster(ctx, cluster.DeepCopy())
+			return res, r.deleteCluster(ctx, req.NamespacedName)
 		}
 		return
 	}
@@ -139,7 +140,7 @@ func buildRaftPod(cluster *LenshoodRaftCluster, members []string, ordinal int) *
 
 func (r *LenshoodRaftClusterReconciler) createCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
 	svc := buildRaftHeadlessSvc(cluster)
-	if err := r.Create(ctx, svc); err != nil {
+	if err := r.Create(ctx, svc); err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -151,7 +152,7 @@ func (r *LenshoodRaftClusterReconciler) createCluster(ctx context.Context, clust
 
 	for i := 0; i < cluster.Spec.Replica; i++ {
 		pod := buildRaftPod(cluster, members, i)
-		if err := r.Create(ctx, pod); err != nil {
+		if err := r.Create(ctx, pod); err != nil && !errors.IsAlreadyExists(err) {
 			return err
 		}
 		cluster.Status.Ids = append(cluster.Status.Ids, pod.Name)
@@ -164,7 +165,24 @@ func (r *LenshoodRaftClusterReconciler) updateCluster(ctx context.Context, clust
 	return nil
 }
 
-func (r *LenshoodRaftClusterReconciler) deleteCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
+func (r *LenshoodRaftClusterReconciler) deleteCluster(ctx context.Context, clusterKey client.ObjectKey) error {
+	svc := &v1.Service{}
+	err := r.Get(ctx, clusterKey, svc)
+	if err == nil || errors.IsNotFound(err) {
+		_ = r.Delete(ctx, svc)
+	}
+
+	pods := &v1.PodList{}
+	selector, _ := labels.Parse(fmt.Sprintf("managed-by=%s", clusterKey.Name))
+
+	if err := r.List(ctx, pods, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		_ = r.Delete(ctx, &pod)
+	}
+
 	return nil
 }
 
