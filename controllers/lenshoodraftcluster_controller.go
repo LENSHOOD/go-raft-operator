@@ -87,7 +87,7 @@ func (r *LenshoodRaftClusterReconciler) reachedDesiredState(ctx context.Context,
 	}
 
 	for _, id := range cluster.Status.Ids {
-		if err := r.Client.Get(ctx, types.NamespacedName{Namespace: id, Name: cluster.Namespace}, &v1.Pod{}); err != nil {
+		if err := r.Client.Get(ctx, types.NamespacedName{Name: id, Namespace: cluster.Namespace}, &v1.Pod{}); err != nil {
 			return false
 		}
 	}
@@ -138,17 +138,23 @@ func buildRaftPod(cluster *LenshoodRaftCluster, members []string, ordinal int) *
 	return pod
 }
 
+func (r *LenshoodRaftClusterReconciler) getMembers(podNums int, svcName string) []string {
+	members := make([]string, 0, podNums)
+	for i := 0; i < podNums; i++ {
+		members = append(members, getPodName(i)+"."+svcName+":34220")
+	}
+	return members
+}
+
 func (r *LenshoodRaftClusterReconciler) createCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
+	cluster = cluster.DeepCopy()
 	svc := buildRaftHeadlessSvc(cluster)
 	if err := r.Create(ctx, svc); err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
 	podNums := cluster.Spec.Replica
-	members := make([]string, 0, podNums)
-	for i := 0; i < podNums; i++ {
-		members = append(members, getPodName(i)+"."+svc.Name+":34220")
-	}
+	members := r.getMembers(podNums, cluster.Name)
 
 	for i := 0; i < cluster.Spec.Replica; i++ {
 		pod := buildRaftPod(cluster, members, i)
@@ -158,10 +164,83 @@ func (r *LenshoodRaftClusterReconciler) createCluster(ctx context.Context, clust
 		cluster.Status.Ids = append(cluster.Status.Ids, pod.Name)
 	}
 
-	return nil
+	cluster.Status.State = OK
+	return r.Status().Update(ctx, cluster)
+}
+
+func (r *LenshoodRaftClusterReconciler) listRaftPods(ctx context.Context, clusterKey client.ObjectKey) (*v1.PodList, error) {
+	pods := &v1.PodList{}
+	selector, _ := labels.Parse(fmt.Sprintf("managed-by=%s", clusterKey.Name))
+
+	if err := r.List(ctx, pods, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return nil, err
+	}
+	return pods, nil
 }
 
 func (r *LenshoodRaftClusterReconciler) updateCluster(ctx context.Context, cluster *LenshoodRaftCluster) error {
+	objectKey := client.ObjectKey{Name: cluster.Name, Namespace: cluster.Namespace}
+	pods, err := r.listRaftPods(ctx, objectKey)
+	if err != nil {
+		return err
+	}
+
+	// check image
+	if len(pods.Items) > 0 {
+		image := pods.Items[0].Spec.Containers[0].Image
+		if image != cluster.Spec.Image {
+			if err := r.deleteCluster(ctx, objectKey); err != nil {
+				return err
+			}
+
+			if err := r.createCluster(ctx, cluster); err != nil {
+				return err
+			}
+
+			return nil
+		}
+	}
+
+	// check nums
+	numsOfPods := len(pods.Items)
+	if numsOfPods == cluster.Spec.Replica {
+		return nil
+	}
+
+	podNameSet := make(map[string]*v1.Pod)
+	for _, pod := range pods.Items {
+		podNameSet[pod.Name] = &pod
+	}
+
+	// less pod
+	if numsOfPods < cluster.Spec.Replica {
+		for i := 0; i < cluster.Spec.Replica; i++ {
+			if _, exist := podNameSet[getPodName(i)]; exist {
+				continue
+			}
+
+			pod := buildRaftPod(cluster, r.getMembers(cluster.Spec.Replica, cluster.Name), i)
+			if err := r.Create(ctx, pod); err != nil && !errors.IsAlreadyExists(err) {
+				return err
+			}
+			cluster.Status.Ids = append(cluster.Status.Ids, pod.Name)
+		}
+
+		return r.Status().Update(ctx, cluster)
+	}
+
+	// more pod
+	for i := 0; i < cluster.Spec.Replica; i++ {
+		podName := getPodName(i)
+		if _, exist := podNameSet[podName]; exist {
+			delete(podNameSet, podName)
+		}
+	}
+
+	for _, pod := range podNameSet {
+		_ = r.Delete(ctx, pod)
+	}
+
 	return nil
 }
 
@@ -172,11 +251,9 @@ func (r *LenshoodRaftClusterReconciler) deleteCluster(ctx context.Context, clust
 		_ = r.Delete(ctx, svc)
 	}
 
-	pods := &v1.PodList{}
-	selector, _ := labels.Parse(fmt.Sprintf("managed-by=%s", clusterKey.Name))
-
-	if err := r.List(ctx, pods, &client.ListOptions{LabelSelector: selector}); err != nil {
-		return err
+	pods, err2 := r.listRaftPods(ctx, clusterKey)
+	if err2 != nil {
+		return err2
 	}
 
 	for _, pod := range pods.Items {
